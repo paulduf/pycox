@@ -1,6 +1,7 @@
 import pandas as pd
 from pycox.datasets._dataset_loader import _DatasetLoader
 
+
 def download_from_rdatasets(package, name):
     datasets = (pd.read_csv("https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/datasets.csv")
                 .loc[lambda x: x['Package'] == package].set_index('Item'))
@@ -14,6 +15,7 @@ def download_from_rdatasets(package, name):
 class _DatasetRdatasetsSurvival(_DatasetLoader):
     """Data sets from Rdataset survival.
     """
+
     def _download(self):
         df, info = download_from_rdatasets('survival', self.name)
         self.info = info
@@ -148,3 +150,30 @@ class _Nwtco(_DatasetRdatasetsSurvival):
                 df[col] = df[col].astype('float32')
             df = self._label_cols_at_end(df)
         return df
+
+
+class _Gbsg(_DatasetRdatasetsSurvival):
+    """_summary_
+    """
+
+    name = 'gbsg'
+    col_duration = 'rfstime'
+    col_event = 'status'
+    _checksum = 'df5a80dded44f990c002e00cee6fd96eeaf4c6beb66e08b2f4f5a1710bc37ba4'
+
+    def _download(self):
+        df = pd.read_csv('https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/survival/gbsg.csv')
+        df.to_feather(self.path)
+
+class _Rotterdam(_DatasetRdatasetsSurvival):
+    """_summary_
+    """
+
+    name = 'rotterdam'
+    col_duration = 'rtime'
+    col_event = 'recur'
+    _checksum = '7c30775ae615b0e56e6a5060413fa5bccd4716b199ac858fe84d26d7651a52a1'
+
+    def _download(self):
+        df = pd.read_csv('https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/survival/rotterdam.csv')
+        df.to_feather(self.path)
