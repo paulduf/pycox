@@ -162,8 +162,22 @@ class _Gbsg(_DatasetRdatasetsSurvival):
     _checksum = 'df5a80dded44f990c002e00cee6fd96eeaf4c6beb66e08b2f4f5a1710bc37ba4'
 
     def _download(self):
-        df = pd.read_csv('https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/survival/gbsg.csv')
+        df = pd.read_csv(
+            'https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/survival/gbsg.csv')
         df.to_feather(self.path)
+
+    def read_df(self, processed=True):
+        df = super().read_df()
+        # df.rename({
+        #     'rfstime': 'rtime',
+        #     'status': 'recur'
+        # },
+        #     inplace = True)
+        if processed:
+            df = (df
+                  .drop(['Unnamed: 0', 'pid'], axis=1))
+        return df
+
 
 class _Rotterdam(_DatasetRdatasetsSurvival):
     """_summary_
@@ -175,5 +189,13 @@ class _Rotterdam(_DatasetRdatasetsSurvival):
     _checksum = '7c30775ae615b0e56e6a5060413fa5bccd4716b199ac858fe84d26d7651a52a1'
 
     def _download(self):
-        df = pd.read_csv('https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/survival/rotterdam.csv')
+        df = pd.read_csv(
+            'https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/survival/rotterdam.csv')
         df.to_feather(self.path)
+
+    def read_df(self, processed=True):
+        df = super().read_df()
+        if processed:
+            df = (df
+                  .drop(['Unnamed: 0', 'pid', 'year', 'dtime', 'death', 'chemo'], axis=1))
+        return df
