@@ -6,13 +6,14 @@ import torch
 import torchtuples as tt
 from pycox import models
 
+
 def search_sorted_idx(array, values):
     '''For sorted array, get index of values.
     If value not in array, give left index of value.
     '''
     n = len(array)
     idx = np.searchsorted(array, values)
-    idx[idx == n] = n-1 # We can't have indexes higher than the length-1
+    idx[idx == n] = n-1  # We can't have indexes higher than the length-1
     not_exact = values != array[idx]
     idx -= not_exact
     if any(idx < 0):
@@ -30,11 +31,11 @@ class _CoxBase(models.base.SurvBase):
             **kwargs):
         """Fit  model with inputs and targets. Where 'input' is the covariates, and
         'target' is a tuple with (durations, events).
-        
+
         Arguments:
             input {np.array, tensor or tuple} -- Input x passed to net.
             target {np.array, tensor or tuple} -- Target [durations, events]. 
-        
+
         Keyword Arguments:
             batch_size {int} -- Elements in each batch (default: {256})
             epochs {int} -- Number of epochs (default: {1})
@@ -43,7 +44,7 @@ class _CoxBase(models.base.SurvBase):
             num_workers {int} -- Number of workers used in the dataloader (default: {0})
             shuffle {bool} -- If we should shuffle the order of the dataset (default: {True})
             **kwargs are passed to 'make_dataloader' method.
-    
+
         Returns:
             TrainingLogger -- Training log
         """
@@ -57,17 +58,17 @@ class _CoxBase(models.base.SurvBase):
 
     def target_to_df(self, target):
         durations, events = tt.tuplefy(target).to_numpy()
-        df = pd.DataFrame({self.duration_col: durations, self.event_col: events}) 
+        df = pd.DataFrame(
+            {self.duration_col: durations, self.event_col: events})
         return df
 
     def compute_baseline_hazards(self, input=None, target=None, max_duration=None, sample=None, batch_size=8224,
-                                set_hazards=True, eval_=True, num_workers=0):
-        """Computes the Breslow estimates form the data defined by `input` and `target`
+                                 set_hazards=True, eval_=True, num_workers=0):
+        """Computes the Breslow estimates from the data defined by `input` and `target`
         (if `None` use training data).
 
-        Typically call
-        model.compute_baseline_hazards() after fitting.
-        
+        User typically calls `model.compute_baseline_hazards()` after fitting.
+
         Keyword Arguments:
             input  -- Input data (train input) (default: {None})
             target  -- Target data (train target) (default: {None})
@@ -75,15 +76,16 @@ class _CoxBase(models.base.SurvBase):
             sample {float or int} -- Compute estimates of subsample of data (default: {None})
             batch_size {int} -- Batch size (default: {8224})
             set_hazards {bool} -- Set hazards in model object, or just return hazards. (default: {True})
-        
+
         Returns:
             pd.Series -- Pandas series with baseline hazards. Index is duration_col.
         """
         if (input is None) and (target is None):
             if not hasattr(self, 'training_data'):
-                raise ValueError("Need to give a 'input' and 'target' to this function.")
+                raise ValueError(
+                    "Need to give a 'input' and 'target' to this function.")
             input, target = self.training_data
-        df = self.target_to_df(target)#.sort_values(self.duration_col)
+        df = self.target_to_df(target)  # .sort_values(self.duration_col)
         if sample is not None:
             if sample >= 1:
                 df = df.sample(n=sample)
@@ -93,7 +95,8 @@ class _CoxBase(models.base.SurvBase):
         base_haz = self._compute_baseline_hazards(input, df, max_duration, batch_size,
                                                   eval_=eval_, num_workers=num_workers)
         if set_hazards:
-            self.compute_baseline_cumulative_hazards(set_hazards=True, baseline_hazards_=base_haz)
+            self.compute_baseline_cumulative_hazards(
+                set_hazards=True, baseline_hazards_=base_haz)
         return base_haz
 
     def compute_baseline_cumulative_hazards(self, input=None, target=None, max_duration=None, sample=None,
@@ -101,15 +104,16 @@ class _CoxBase(models.base.SurvBase):
                                             eval_=True, num_workers=0):
         """See `compute_baseline_hazards. This is the cumulative version."""
         if ((input is not None) or (target is not None)) and (baseline_hazards_ is not None):
-            raise ValueError("'input', 'target' and 'baseline_hazards_' can not both be different from 'None'.")
+            raise ValueError(
+                "'input', 'target' and 'baseline_hazards_' can not both be different from 'None'.")
         if baseline_hazards_ is None:
             baseline_hazards_ = self.compute_baseline_hazards(input, target, max_duration, sample, batch_size,
-                                                             set_hazards=False, eval_=eval_, num_workers=num_workers)
+                                                              set_hazards=False, eval_=eval_, num_workers=num_workers)
         assert baseline_hazards_.index.is_monotonic_increasing,\
             'Need index of baseline_hazards_ to be monotonic increasing, as it represents time.'
         bch = (baseline_hazards_
-                .cumsum()
-                .rename('baseline_cumulative_hazards'))
+               .cumsum()
+               .rename('baseline_cumulative_hazards'))
         if set_hazards:
             self.baseline_hazards_ = baseline_hazards_
             self.baseline_cumulative_hazards_ = bch
@@ -122,7 +126,8 @@ class _CoxBase(models.base.SurvBase):
             input = self.df_to_input(input)
         if baseline_hazards_ is None:
             if not hasattr(self, 'baseline_hazards_'):
-                raise ValueError('Need to compute baseline_hazards_. E.g run `model.compute_baseline_hazards()`')
+                raise ValueError(
+                    'Need to compute baseline_hazards_. E.g run `model.compute_baseline_hazards()`')
             baseline_hazards_ = self.baseline_hazards_
         assert baseline_hazards_.index.is_monotonic_increasing,\
             'Need index of baseline_hazards_ to be monotonic increasing, as it represents time.'
@@ -218,7 +223,7 @@ class _CoxBase(models.base.SurvBase):
     def df_to_input(self, df):
         input = df[self.input_cols].values
         return input
-    
+
 
 class _CoxPHBase(_CoxBase):
     def _compute_baseline_hazards(self, input, df_target, max_duration, batch_size, eval_=True, num_workers=0):
@@ -245,11 +250,12 @@ class _CoxPHBase(_CoxBase):
         if baseline_hazards_ is self.baseline_hazards_:
             bch = self.baseline_cumulative_hazards_
         else:
-            bch = self.compute_baseline_cumulative_hazards(set_hazards=False, 
+            bch = self.compute_baseline_cumulative_hazards(set_hazards=False,
                                                            baseline_hazards_=baseline_hazards_)
         bch = bch.loc[lambda x: x.index <= max_duration]
-        expg = np.exp(self.predict(input, batch_size, True, eval_, num_workers=num_workers)).reshape(1, -1)
-        return pd.DataFrame(bch.values.reshape(-1, 1).dot(expg), 
+        expg = np.exp(self.predict(input, batch_size, True, eval_,
+                      num_workers=num_workers)).reshape(1, -1)
+        return pd.DataFrame(bch.values.reshape(-1, 1).dot(expg),
                             index=bch.index)
 
     def partial_log_likelihood(self, input, target, g_preds=None, batch_size=8224, eps=1e-7, eval_=True,
@@ -273,7 +279,8 @@ class _CoxPHBase(_CoxBase):
         '''
         df = self.target_to_df(target)
         if g_preds is None:
-            g_preds = self.predict(input, batch_size, True, eval_, num_workers=num_workers)
+            g_preds = self.predict(
+                input, batch_size, True, eval_, num_workers=num_workers)
         return (df
                 .assign(_g_preds=g_preds)
                 .sort_values(self.duration_col, ascending=False)
@@ -297,7 +304,7 @@ class CoxPH(_CoxPHBase):
 
     Arguments:
         net {torch.nn.Module} -- A pytorch net.
-    
+
     Keyword Arguments:
         optimizer {torch or torchtuples optimizer} -- Optimizer (default: {None})
         device {str, int, torch.device} -- Device to compute on. (default: {None})
@@ -311,6 +318,7 @@ class CoxPH(_CoxPHBase):
         BMC Medical Research Methodology, 18(1), 2018.
         https://bmcmedresmethodol.biomedcentral.com/articles/10.1186/s12874-018-0482-1
     """
+
     def __init__(self, net, optimizer=None, device=None, loss=None):
         if loss is None:
             loss = models.loss.CoxPHLoss()
@@ -327,7 +335,7 @@ class CoxPHSorted(_CoxPHBase):
 
     Arguments:
         net {torch.nn.Module} -- A pytorch net.
-    
+
     Keyword Arguments:
         optimizer {torch or torchtuples optimizer} -- Optimizer (default: {None})
         device {str, int, torch.device} -- Device to compute on. (default: {None})
@@ -341,8 +349,10 @@ class CoxPHSorted(_CoxPHBase):
         BMC Medical Research Methodology, 18(1), 2018.
         https://bmcmedresmethodol.biomedcentral.com/articles/10.1186/s12874-018-0482-1
     """
+
     def __init__(self, net, optimizer=None, device=None, loss=None):
-        warnings.warn('Use `CoxPH` instead. This will be removed', DeprecationWarning)
+        warnings.warn('Use `CoxPH` instead. This will be removed',
+                      DeprecationWarning)
         if loss is None:
             loss = models.loss.CoxPHLossSorted()
         super().__init__(net, loss, optimizer, device)
