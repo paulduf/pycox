@@ -3,7 +3,8 @@ import scipy
 import numba
 from pycox import utils
 
-@numba.njit(parallel=True)
+
+@numba.njit(parallel=utils._pycox_parallel)
 def _inv_cens_scores(func, time_grid, durations, events, surv, censor_surv, idx_ts_surv, idx_ts_censor,
                      idx_tt_censor, scores, weights, n_times, n_indiv, max_weight):
     def _inv_cens_score_single(func, ts, durations, events, surv, censor_surv, idx_ts_surv_i,
@@ -31,6 +32,7 @@ def _inv_cens_scores(func, time_grid, durations, events, surv, censor_surv, idx_
         _inv_cens_score_single(func, ts, durations, events, surv, censor_surv, idx_ts_surv_i,
                                idx_ts_censor_i, idx_tt_censor, scores_i, weights_i, n_indiv, max_weight)
 
+
 def _inverse_censoring_weighted_metric(func):
     if not func.__class__.__module__.startswith('numba'):
         raise ValueError("Need to provide numba compiled function")
@@ -44,11 +46,14 @@ def _inverse_censoring_weighted_metric(func):
         n_indiv = len(durations)
         scores = np.zeros((n_times, n_indiv))
         weights = np.zeros((n_times, n_indiv))
-        idx_ts_surv = utils.idx_at_times(index_surv, time_grid, steps_surv, assert_sorted=True)
-        idx_ts_censor = utils.idx_at_times(index_censor, time_grid, steps_censor, assert_sorted=True)
-        idx_tt_censor = utils.idx_at_times(index_censor, durations, 'pre', assert_sorted=True)
+        idx_ts_surv = utils.idx_at_times(
+            index_surv, time_grid, steps_surv, assert_sorted=True)
+        idx_ts_censor = utils.idx_at_times(
+            index_censor, time_grid, steps_censor, assert_sorted=True)
+        idx_tt_censor = utils.idx_at_times(
+            index_censor, durations, 'pre', assert_sorted=True)
         if steps_censor == 'post':
-            idx_tt_censor  = (idx_tt_censor - 1).clip(0)
+            idx_tt_censor = (idx_tt_censor - 1).clip(0)
             #  This ensures that we get G(tt-)
         _inv_cens_scores(func, time_grid, durations, events, surv, censor_surv, idx_ts_surv, idx_ts_censor,
                          idx_tt_censor, scores, weights, n_times, n_indiv, max_weight)
@@ -57,6 +62,7 @@ def _inverse_censoring_weighted_metric(func):
         return scores, weights
     return metric
 
+
 @numba.njit()
 def _brier_score(ts, tt, s, g_ts, g_tt, d):
     if (tt <= ts) and d == 1:
@@ -64,6 +70,7 @@ def _brier_score(ts, tt, s, g_ts, g_tt, d):
     if tt > ts:
         return np.power(1 - s, 2), 1./g_ts
     return 0., 0.
+
 
 @numba.njit()
 def _binomial_log_likelihood(ts, tt, s, g_ts, g_tt, d, eps=1e-7):
@@ -75,8 +82,11 @@ def _binomial_log_likelihood(ts, tt, s, g_ts, g_tt, d, eps=1e-7):
         return np.log(s), 1./g_ts
     return 0., 0.
 
+
 brier_score = _inverse_censoring_weighted_metric(_brier_score)
-binomial_log_likelihood = _inverse_censoring_weighted_metric(_binomial_log_likelihood)
+binomial_log_likelihood = _inverse_censoring_weighted_metric(
+    _binomial_log_likelihood)
+
 
 def _integrated_inverce_censoring_weighed_metric(func):
     def metric(time_grid, durations, events, surv, censor_surv, index_surv, index_censor,
@@ -87,5 +97,8 @@ def _integrated_inverce_censoring_weighed_metric(func):
         return integral / (time_grid[-1] - time_grid[0])
     return metric
 
-integrated_brier_score = _integrated_inverce_censoring_weighed_metric(brier_score)
-integrated_binomial_log_likelihood = _integrated_inverce_censoring_weighed_metric(binomial_log_likelihood)
+
+integrated_brier_score = _integrated_inverce_censoring_weighed_metric(
+    brier_score)
+integrated_binomial_log_likelihood = _integrated_inverce_censoring_weighed_metric(
+    binomial_log_likelihood)

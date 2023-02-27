@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import numba
+from pycox.utils import _pycox_parallel
 
 
 @numba.njit
@@ -36,7 +37,7 @@ def _is_concordant_antolini(s_i, s_j, t_i, t_j, d_i, d_j):
     return (s_i < s_j) & _is_comparable_antolini(t_i, t_j, d_i, d_j)
 
 
-@numba.njit(parallel=True)
+@numba.njit(parallel=_pycox_parallel)
 def _sum_comparable(t, d, is_comparable_func):
     n = t.shape[0]
     count = 0.
@@ -47,7 +48,7 @@ def _sum_comparable(t, d, is_comparable_func):
     return count
 
 
-@numba.njit(parallel=True)
+@numba.njit(parallel=_pycox_parallel)
 def _sum_concordant(s, t, d):
     n = len(t)
     count = 0.
@@ -59,7 +60,7 @@ def _sum_concordant(s, t, d):
     return count
 
 
-@numba.njit(parallel=True)
+@numba.njit(parallel=_pycox_parallel)
 def _sum_concordant_disc(s, t, d, s_idx, is_concordant_func):
     n = len(t)
     count = 0

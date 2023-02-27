@@ -5,11 +5,12 @@ import pandas as pd
 from pycox.evaluation.concordance import concordance_td
 from pycox.evaluation import ipcw, admin
 from pycox import utils
+from pycox.utils import _pycox_parallel
 
 
 class EvalSurv:
     """Class for evaluating predictions.
-    
+
     Arguments:
         surv {pd.DataFrame} -- Survival predictions.
         durations {np.array} -- Durations of test set.
@@ -25,15 +26,17 @@ class EvalSurv:
         steps {str} -- For durations between values of `surv.index` choose the higher index 'pre'
             or lower index 'post'. For a visualization see `help(EvalSurv.steps)`. (default: {'post'})
     """
+
     def __init__(self, surv, durations, events, censor_surv=None, censor_durations=None, steps='post'):
-        assert (type(durations) == type(events) == np.ndarray), 'Need `durations` and `events` to be arrays'
+        assert (type(durations) == type(events) ==
+                np.ndarray), 'Need `durations` and `events` to be arrays'
         self.surv = surv
         self.durations = durations
         self.events = events
         self.censor_surv = censor_surv
         self.censor_durations = censor_durations
         self.steps = steps
-        assert pd.Series(self.index_surv).is_monotonic
+        assert pd.Series(self.index_surv).is_monotonic_increasing
 
     @property
     def censor_surv(self):
@@ -50,7 +53,8 @@ class EvalSurv:
             if censor_surv == 'km':
                 self.add_km_censor()
             else:
-                raise ValueError(f"censor_surv cannot be {censor_surv}. Use e.g. 'km'")
+                raise ValueError(
+                    f"censor_surv cannot be {censor_surv}. Use e.g. 'km'")
         elif censor_surv is not None:
             self.add_censor_est(censor_surv)
         else:
@@ -83,7 +87,7 @@ class EvalSurv:
     def add_censor_est(self, censor_surv, steps='post'):
         """Add censoring estimates so one can use inverse censoring weighting.
         `censor_surv` are the survival estimates trained on (durations, 1-events),
-        
+
         Arguments:
             censor_surv {pd.DataFrame} -- Censor survival curves.
 
@@ -110,7 +114,7 @@ class EvalSurv:
     def censor_durations(self):
         """Administrative censoring times."""
         return self._censor_durations
-    
+
     @censor_durations.setter
     def censor_durations(self, val):
         if val is not None:
@@ -130,12 +134,13 @@ class EvalSurv:
         return EvalSurv
 
     def __getitem__(self, index):
-        if not (hasattr(index, '__iter__') or type(index) is slice) :
+        if not (hasattr(index, '__iter__') or type(index) is slice):
             index = [index]
         surv = self.surv.iloc[:, index]
         durations = self.durations[index]
         events = self.events[index]
-        new = self._constructor(surv, durations, events, None, steps=self.steps)
+        new = self._constructor(surv, durations, events,
+                                None, steps=self.steps)
         if self.censor_surv is not None:
             new.censor_surv = self.censor_surv[index]
         return new
@@ -145,9 +150,11 @@ class EvalSurv:
         kwargs are passed to `self.surv.plot`.
         """
         if len(self.durations) > 50:
-            raise RuntimeError("We don't allow to plot more than 50 lines. Use e.g. `ev[1:5].plot()`")
+            raise RuntimeError(
+                "We don't allow to plot more than 50 lines. Use e.g. `ev[1:5].plot()`")
         if 'drawstyle' in kwargs:
-            raise RuntimeError(f"`drawstyle` is set by `self.steps`. Remove from **kwargs")
+            raise RuntimeError(
+                f"`drawstyle` is set by `self.steps`. Remove from **kwargs")
         return self.surv.plot(drawstyle=f"steps-{self.steps}", **kwargs)
 
     def idx_at_times(self, times):
@@ -174,7 +181,7 @@ class EvalSurv:
         index for survival data. Statistics in Medicine 24:3927–3944.
 
         If 'method' is 'antolini', the concordance from Antolini et al. is computed.
-    
+
         If 'method' is 'adj_antolini' (default) we have made a small modifications
         for ties in predictions and event times.
         We have followed step 3. in Sec 5.1. in Random Survival Forests paper, except for the last
@@ -193,7 +200,7 @@ class EvalSurv:
     def brier_score(self, time_grid, max_weight=np.inf):
         """Brier score weighted by the inverse censoring distribution.
         See Section 3.1.2 or [1] for details of the wighting scheme.
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -218,7 +225,7 @@ class EvalSurv:
     def nbll(self, time_grid, max_weight=np.inf):
         """Negative binomial log-likelihood weighted by the inverse censoring distribution.
         See Section 3.1.2 or [1] for details of the wighting scheme.
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -243,7 +250,7 @@ class EvalSurv:
     def integrated_brier_score(self, time_grid, max_weight=np.inf):
         """Integrated Brier score weighted by the inverse censoring distribution.
         Essentially an integral over values obtained from `brier_score(time_grid, max_weight)`.
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -252,7 +259,8 @@ class EvalSurv:
                 can represent (default {np.inf}).
         """
         if self.censor_surv is None:
-            raise ValueError("Need to add censor_surv to compute briser score. Use 'add_censor_est'")
+            raise ValueError(
+                "Need to add censor_surv to compute briser score. Use 'add_censor_est'")
         return ipcw.integrated_brier_score(time_grid, self.durations, self.events, self.surv.values,
                                            self.censor_surv.surv.values, self.index_surv,
                                            self.censor_surv.index_surv, max_weight, self.steps,
@@ -261,7 +269,7 @@ class EvalSurv:
     def integrated_nbll(self, time_grid, max_weight=np.inf):
         """Integrated negative binomial log-likelihood weighted by the inverse censoring distribution.
         Essentially an integral over values obtained from `nbll(time_grid, max_weight)`.
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -270,7 +278,8 @@ class EvalSurv:
                 can represent (default {np.inf}).
         """
         if self.censor_surv is None:
-            raise ValueError("Need to add censor_surv to compute the score. Use 'add_censor_est'")
+            raise ValueError(
+                "Need to add censor_surv to compute the score. Use 'add_censor_est'")
         ibll = ipcw.integrated_binomial_log_likelihood(time_grid, self.durations, self.events, self.surv.values,
                                                        self.censor_surv.surv.values, self.index_surv,
                                                        self.censor_surv.index_surv, max_weight, self.steps,
@@ -281,7 +290,7 @@ class EvalSurv:
         """The Administrative Brier score proposed by [1].
         Removes individuals as they are administratively censored, event if they have experienced an
         event. 
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -291,7 +300,8 @@ class EvalSurv:
                 https://arxiv.org/pdf/1912.08581.pdf
         """
         if self.censor_durations is None:
-            raise ValueError("Need to provide `censor_durations` (censoring durations) to use this method")
+            raise ValueError(
+                "Need to provide `censor_durations` (censoring durations) to use this method")
         bs = admin.brier_score(time_grid, self.durations, self.censor_durations, self.events,
                                self.surv.values, self.index_surv, True, self.steps)
         return pd.Series(bs, index=time_grid).rename('brier_score')
@@ -300,7 +310,7 @@ class EvalSurv:
         """The Integrated administrative Brier score proposed by [1].
         Removes individuals as they are administratively censored, event if they have experienced an
         event. 
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -310,7 +320,8 @@ class EvalSurv:
                 https://arxiv.org/pdf/1912.08581.pdf
         """
         if self.censor_durations is None:
-            raise ValueError("Need to provide `censor_durations` (censoring durations) to use this method")
+            raise ValueError(
+                "Need to provide `censor_durations` (censoring durations) to use this method")
         ibs = admin.integrated_brier_score(time_grid, self.durations, self.censor_durations, self.events,
                                            self.surv.values, self.index_surv, self.steps)
         return ibs
@@ -319,7 +330,7 @@ class EvalSurv:
         """The negative administrative binomial log-likelihood proposed by [1].
         Removes individuals as they are administratively censored, event if they have experienced an
         event. 
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -329,16 +340,17 @@ class EvalSurv:
                 https://arxiv.org/pdf/1912.08581.pdf
         """
         if self.censor_durations is None:
-            raise ValueError("Need to provide `censor_durations` (censoring durations) to use this method")
+            raise ValueError(
+                "Need to provide `censor_durations` (censoring durations) to use this method")
         bll = admin.binomial_log_likelihood(time_grid, self.durations, self.censor_durations, self.events,
-                                           self.surv.values, self.index_surv, True, self.steps)
+                                            self.surv.values, self.index_surv, True, self.steps)
         return pd.Series(-bll, index=time_grid).rename('nbll')
 
     def integrated_nbll_admin(self, time_grid):
         """The Integrated negative administrative binomial log-likelihood score proposed by [1].
         Removes individuals as they are administratively censored, event if they have experienced an
         event. 
-        
+
         Arguments:
             time_grid {np.array} -- Durations where the brier score should be calculated.
 
@@ -348,7 +360,8 @@ class EvalSurv:
                 https://arxiv.org/pdf/1912.08581.pdf
         """
         if self.censor_durations is None:
-            raise ValueError("Need to provide `censor_durations` (censoring durations) to use this method")
+            raise ValueError(
+                "Need to provide `censor_durations` (censoring durations) to use this method")
         ibll = admin.integrated_binomial_log_likelihood(time_grid, self.durations, self.censor_durations,
                                                         self.events, self.surv.values, self.index_surv,
                                                         self.steps)
